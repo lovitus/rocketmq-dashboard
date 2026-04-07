@@ -42,6 +42,15 @@ mvn clean package -Dmaven.test.skip=true
 java -jar target/rocketmq-dashboard-1.0.1-SNAPSHOT.jar
 ```
 
+### GitHub Release packages
+
+This fork provides a GitHub Actions release workflow in `.github/workflows/release.yml`.
+
+- Push a tag like `v2.1.1` to build a GitHub Release automatically.
+- The workflow uploads ready-to-run Linux bundles for `x64` and `aarch64`.
+- Each bundle contains the dashboard jar, a bundled Temurin JRE 17 runtime, startup script, `LICENSE`, and `NOTICE`.
+- The same workflow also publishes multi-architecture container images for `linux/amd64` and `linux/arm64` to GHCR.
+
 #### Tips
 * If you download the package slowly, you can change maven's mirror(maven's settings.xml)
 

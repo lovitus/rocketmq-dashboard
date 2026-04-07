@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-FROM eclipse-temurin:17.0.16_8-jre-ubi9-minimal
+FROM eclipse-temurin:17-jre-jammy
 VOLUME /tmp
 ADD rocketmq-dashboard-*.jar rocketmq-dashboard.jar
 RUN sh -c 'touch /rocketmq-dashboard.jar'
