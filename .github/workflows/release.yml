@@ -27,6 +27,8 @@ jobs:
           cache: maven
 
       - name: Build application jar
+        env:
+          CI: "false"
         run: mvn -B -ntp clean package -DskipTests
 
       - name: Capture build metadata
