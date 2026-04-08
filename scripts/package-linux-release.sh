@@ -63,11 +63,11 @@ cat > "${dist_root}/bin/rocketmq-dashboard" <<EOF
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-APP_HOME=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
+SCRIPT_DIR=\$(CDPATH= cd -- "\$(dirname -- "\$0")" && pwd)
+APP_HOME=\$(CDPATH= cd -- "\${SCRIPT_DIR}/.." && pwd)
 DEFAULT_JAVA_OPTS="${default_java_opts}"
 
-exec "${APP_HOME}/runtime/bin/java" ${DEFAULT_JAVA_OPTS} ${JAVA_OPTS:-} -jar "${APP_HOME}/lib/rocketmq-dashboard.jar" "$@"
+exec "\${APP_HOME}/runtime/bin/java" \${DEFAULT_JAVA_OPTS} \${JAVA_OPTS:-} -jar "\${APP_HOME}/lib/rocketmq-dashboard.jar" "\$@"
 EOF
 
 chmod +x "${dist_root}/bin/rocketmq-dashboard"
