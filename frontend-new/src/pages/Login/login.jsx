@@ -19,6 +19,7 @@ import React from 'react';
 import {Button, Form, Input, message, Typography} from 'antd';
 import {remoteApi} from "../../api/remoteApi/remoteApi";
 import {useLanguage} from "../../i18n/LanguageContext";
+import {buildAppUrl} from "../../utils/runtimeBasePath";
 
 const {Title} = Typography;
 
@@ -33,7 +34,7 @@ const Login = () => {
                 messageApi.success(t.LOGIN_SUCCESS);
                 window.localStorage.setItem("username", res.data.loginUserName);
                 window.localStorage.setItem("userrole", res.data.loginUserRole);
-                window.location.href = '/';
+                window.location.href = buildAppUrl('/', res.data.contextPath);
             } else {
                 messageApi.error(res.message || t.LOGIN_FAILED);
             }

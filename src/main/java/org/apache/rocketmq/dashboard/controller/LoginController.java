@@ -26,12 +26,12 @@ import org.apache.rocketmq.dashboard.model.LoginResult;
 import org.apache.rocketmq.dashboard.model.User;
 import org.apache.rocketmq.dashboard.model.UserInfo;
 import org.apache.rocketmq.dashboard.service.UserService;
+import org.apache.rocketmq.dashboard.support.ContextPathResolver;
 import org.apache.rocketmq.dashboard.support.JsonResult;
 import org.apache.rocketmq.dashboard.util.WebUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,8 +50,8 @@ public class LoginController {
     @Autowired
     private UserService userService;
 
-    @Value("${server.servlet.context-path:/}")
-    private String contextPath;
+    @Autowired
+    private ContextPathResolver contextPathResolver;
 
     @RequestMapping(value = "/check.query", method = RequestMethod.GET)
     @ResponseBody
@@ -80,7 +80,7 @@ public class LoginController {
             WebUtil.setSessionValue(request, WebUtil.USER_INFO, userInfo);
             WebUtil.setSessionValue(request, WebUtil.USER_NAME, userInfoRequest.getUsername());
             userInfo.setSessionId(WebUtil.getSessionId(request));
-            LoginResult result = new LoginResult(userInfoRequest.getUsername(), user.getType(), contextPath);
+            LoginResult result = new LoginResult(userInfoRequest.getUsername(), user.getType(), contextPathResolver.resolve());
             return result;
         }
     }
@@ -89,6 +89,6 @@ public class LoginController {
     @ResponseBody
     public JsonResult<String> logout(HttpServletRequest request) {
         WebUtil.removeSession(request);
-        return new JsonResult<>(contextPath);
+        return new JsonResult<>(contextPathResolver.resolve());
     }
 }

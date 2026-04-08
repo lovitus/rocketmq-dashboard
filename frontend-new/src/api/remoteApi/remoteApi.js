@@ -15,8 +15,10 @@
  * limitations under the License.
  */
 
+import {buildApiUrl, setRuntimeBasePath} from "../../utils/runtimeBasePath";
+
 const appConfig = {
-    apiBaseUrl: process.env.REACT_APP_API_BASE_URL || window.location.origin
+    apiBaseUrl: process.env.REACT_APP_API_BASE_URL || ''
 };
 
 let _redirectHandler = null;
@@ -28,10 +30,13 @@ const remoteApi = {
     },
 
     buildUrl: (endpoint) => {
-        if (endpoint.charAt(0) === '/') {
-            endpoint = endpoint.substring(1);
+        if (appConfig.apiBaseUrl) {
+            if (endpoint.charAt(0) === '/') {
+                endpoint = endpoint.substring(1);
+            }
+            return `${appConfig.apiBaseUrl}/${endpoint}`;
         }
-        return `${appConfig.apiBaseUrl}/${endpoint}`;
+        return buildApiUrl(endpoint);
     },
 
 
@@ -933,6 +938,9 @@ const remoteApi = {
             });
 
             const data = await response.json();
+            if (data?.status === 0 && data?.data?.contextPath !== undefined) {
+                setRuntimeBasePath(data.data.contextPath);
+            }
             return data;
         } catch (error) {
             console.error("Error logging in:", error);
@@ -945,7 +953,11 @@ const remoteApi = {
             const response = await remoteApi._fetch(remoteApi.buildUrl("/login/logout.do"), {
                 method: 'POST'
             });
-            return await response.json()
+            const data = await response.json();
+            if (data?.status === 0 && data?.data !== undefined) {
+                setRuntimeBasePath(data.data);
+            }
+            return data
         } catch (error) {
             console.error("Error logging out:", error);
             return {status: 1, errMsg: "Failed to log out"};

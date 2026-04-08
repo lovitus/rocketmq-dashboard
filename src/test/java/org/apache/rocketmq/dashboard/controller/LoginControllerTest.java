@@ -20,6 +20,7 @@ import org.apache.rocketmq.dashboard.model.User;
 import org.apache.rocketmq.dashboard.service.impl.UserServiceImpl;
 import org.apache.rocketmq.dashboard.service.strategy.UserContext;
 import org.apache.rocketmq.dashboard.service.strategy.UserStrategy;
+import org.apache.rocketmq.dashboard.support.ContextPathResolver;
 import org.apache.rocketmq.dashboard.support.GlobalExceptionHandler;
 import org.apache.rocketmq.dashboard.util.WebUtil;
 import org.junit.Before;
@@ -31,10 +32,6 @@ import org.mockito.Spy;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.util.ReflectionUtils;
-
-import java.lang.reflect.Field;
-
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -54,6 +51,9 @@ public class LoginControllerTest extends BaseControllerTest {
     @Spy
     private UserStrategy userStrategy;
 
+    @Mock
+    private ContextPathResolver contextPathResolver;
+
     private String contextPath = "/rocketmq-console";
 
     @Before
@@ -62,9 +62,7 @@ public class LoginControllerTest extends BaseControllerTest {
         super.mockRmqConfigure();
         when(configure.isLoginRequired()).thenReturn(true);
         when(configure.getRocketMqDashboardDataPath()).thenReturn("");
-        Field contextPathField = ReflectionUtils.findField(LoginController.class, "contextPath");
-        ReflectionUtils.makeAccessible(contextPathField);
-        ReflectionUtils.setField(contextPathField, loginController, contextPath);
+        when(contextPathResolver.resolve()).thenReturn(contextPath);
         mockMvc = MockMvcBuilders.standaloneSetup(loginController).setControllerAdvice(GlobalExceptionHandler.class).build();
     }
 
@@ -107,6 +105,9 @@ public class LoginControllerTest extends BaseControllerTest {
         perform = mockMvc.perform(post(url)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"username\":\"" + username + "\",\"password\":\"" + rightPwd + "\"}"));
+        perform.andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.loginUserName").value(username))
+                .andExpect(jsonPath("$.data.contextPath").value(contextPath));
     }
 
 
