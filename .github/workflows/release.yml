@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  build-jar:
+  build-standard-jar:
     runs-on: ubuntu-latest
     outputs:
       app_version: ${{ steps.project.outputs.app_version }}
@@ -44,12 +44,58 @@ jobs:
       - name: Upload jar artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-jar
+          name: app-jar-standard
           path: target/${{ steps.project.outputs.jar_name }}
           if-no-files-found: error
 
-  package-linux:
-    needs: build-jar
+  build-prefixed-jar:
+    runs-on: ubuntu-latest
+    outputs:
+      app_version: ${{ steps.project.outputs.app_version }}
+      jar_name: ${{ steps.project.outputs.jar_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build prefixed application jar
+        env:
+          CI: "false"
+          PUBLIC_URL: "."
+          REACT_APP_API_BASE_URL: "/rocketmq-console"
+        run: mvn -B -ntp clean package -DskipTests
+
+      - name: Capture build metadata
+        id: project
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_version="$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version)"
+          jar_name="$(basename "$(find target -maxdepth 1 -type f -name 'rocketmq-dashboard-*.jar' ! -name '*original*' | head -n 1)")"
+          echo "app_version=${app_version}" >> "${GITHUB_OUTPUT}"
+          echo "jar_name=${jar_name}" >> "${GITHUB_OUTPUT}"
+
+      - name: Rename prefixed jar
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv "target/${{ steps.project.outputs.jar_name }}" "target/rocketmq-dashboard-${{ steps.project.outputs.app_version }}-rocketmq-console.jar"
+
+      - name: Upload prefixed jar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-jar-rocketmq-console
+          path: target/rocketmq-dashboard-${{ steps.project.outputs.app_version }}-rocketmq-console.jar
+          if-no-files-found: error
+
+  package-standard-linux:
+    needs: build-standard-jar
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -64,7 +110,7 @@ jobs:
       - name: Download jar artifact
         uses: actions/download-artifact@v4
         with:
-          name: app-jar
+          name: app-jar-standard
           path: target
 
       - name: Package linux release
@@ -74,14 +120,55 @@ jobs:
           chmod +x scripts/package-linux-release.sh
           scripts/package-linux-release.sh \
             "${{ matrix.arch }}" \
-            "${{ needs.build-jar.outputs.app_version }}" \
-            "target/${{ needs.build-jar.outputs.jar_name }}" \
+            "${{ needs.build-standard-jar.outputs.app_version }}" \
+            "target/${{ needs.build-standard-jar.outputs.jar_name }}" \
             dist
 
       - name: Upload packaged release
         uses: actions/upload-artifact@v4
         with:
-          name: release-linux-${{ matrix.arch }}
+          name: release-linux-standard-${{ matrix.arch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+
+  package-prefixed-linux:
+    needs: build-prefixed-jar
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x64
+          - aarch64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download jar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar-rocketmq-console
+          path: target
+
+      - name: Package prefixed linux release
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/package-linux-release.sh
+          scripts/package-linux-release.sh \
+            "${{ matrix.arch }}" \
+            "${{ needs.build-prefixed-jar.outputs.app_version }}" \
+            "target/rocketmq-dashboard-${{ needs.build-prefixed-jar.outputs.app_version }}-rocketmq-console.jar" \
+            dist \
+            "rocketmq-console" \
+            "-Dserver.servlet.context-path=/rocketmq-console"
+
+      - name: Upload packaged release
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-rocketmq-console-${{ matrix.arch }}
           path: |
             dist/*.tar.gz
             dist/*.sha256
@@ -90,8 +177,10 @@ jobs:
   publish-release:
     if: startsWith(github.ref, 'refs/tags/')
     needs:
-      - build-jar
-      - package-linux
+      - build-standard-jar
+      - build-prefixed-jar
+      - package-standard-linux
+      - package-prefixed-linux
     runs-on: ubuntu-latest
     steps:
       - name: Download packaged assets
@@ -101,17 +190,46 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - name: Download jar artifact
+      - name: Download standard jar artifact
         uses: actions/download-artifact@v4
         with:
-          name: app-jar
+          name: app-jar-standard
           path: dist
+
+      - name: Download prefixed jar artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-jar-rocketmq-console
+          path: dist
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<'EOF'
+          This release contains two Linux distribution flavors:
+
+          - Standard build: regular RocketMQ Dashboard artifacts with the default root-path behavior.
+          - `rocketmq-console` special build: artifacts fixed to the `/rocketmq-console` URL prefix.
+
+          The `rocketmq-console` special build is intended for reverse proxies such as Nginx when you want the application mounted under:
+
+          - `/rocketmq-console`
+
+          Special-build behavior:
+
+          - Frontend API base path is compiled as `/rocketmq-console`
+          - Static assets are built with relative paths for subpath deployment
+          - The packaged startup script adds `-Dserver.servlet.context-path=/rocketmq-console` automatically
+
+          Use the assets whose filenames include `rocketmq-console` when you want that fixed subpath deployment.
+          EOF
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: release-notes.md
           files: |
-            dist/${{ needs.build-jar.outputs.jar_name }}
+            dist/${{ needs.build-standard-jar.outputs.jar_name }}
+            dist/rocketmq-dashboard-${{ needs.build-prefixed-jar.outputs.app_version }}-rocketmq-console.jar
             dist/*.tar.gz
             dist/*.sha256
